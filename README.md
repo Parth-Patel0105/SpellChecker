@@ -1,4 +1,5 @@
-William Cumming WPC30
+William Cumming WPC30 
+Parth Patel PP795
 
 README
 Below is a listed description of our spellchecker program
