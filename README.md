@@ -1,3 +1,5 @@
+William Cumming WPC30
+
 README
 Below is a listed description of our spellchecker program
 
