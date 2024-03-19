@@ -108,37 +108,37 @@ void reportSpellingError(const char* word, const char* path, int line, int col, 
     }
 }
 
+bool hasIncorrectMidWordCapitalization(const char* word) {
+    // Assuming the first letter can be capitalized, start checking from the second character.
+    for (int i = 1; word[i] != '\0'; i++) {
+        if (isupper(word[i])) {
+            return true; // Found an uppercase letter in the middle of the word
+        }
+    }
+    return false; // No incorrect mid-word capitalization
+}
+
 bool matchesCapitalizationRules(const char* dictWord, const char* inputWord) {
-    // Exact match
+    // Check for an exact match
     if (strcmp(dictWord, inputWord) == 0) return true;
 
-    // Convert dictionary word to uppercase for comparison
-    char upperDictWord[strlen(dictWord) + 1];
-    for (int i = 0; dictWord[i] != '\0'; i++) {
-        upperDictWord[i] = toupper(dictWord[i]);
+    // Convert the input word to uppercase for comparison
+    char upperInputWord[strlen(inputWord) + 1];
+    for (int i = 0; inputWord[i] != '\0'; i++) {
+        upperInputWord[i] = toupper(inputWord[i]);
     }
-    upperDictWord[strlen(dictWord)] = '\0';
+    upperInputWord[strlen(inputWord)] = '\0';
 
-    // Compare uppercase dictionary word with input word
-    if (strcmp(upperDictWord, inputWord) == 0) return true;
-   
-    // Check if the first letter of the dictionary word is uppercase
-    if (isupper(dictWord[0])) {
-        // Compare the entire dictionary word (with the first letter capitalized) with the input word
-        if (strcasecmp(dictWord, inputWord) == 0) {
-            return true;
+    // Compare uppercase versions of the dictionary word and the input word
+    if (strcmp(dictWord, upperInputWord) == 0) {
+        // The input word matches the dictionary word in uppercase form,
+        // but we need to ensure it does not have incorrect mid-word capitalization.
+        if (!hasIncorrectMidWordCapitalization(inputWord)) {
+            return true; // Matches and no incorrect capitalization
         }
     }
 
-    // Initial capital or dictionary word has internal capitals
-    for (int i = 0; dictWord[i] != '\0'; i++) {
-        if (islower(dictWord[i])) {
-            if (strcasecmp(dictWord, inputWord) == 0) return true;
-            break;
-        }
-    }
-
-    return false;
+    return false; // No match or incorrect capitalization
 }
 
 WordNode* findWord(const char* word) {
@@ -177,6 +177,19 @@ void cleanAndCheckWord(char* word, const char* path, int line, int col, bool isC
     }
 }
 
+void updateLineAndColumn(int* line, int* col, char currentChar, bool* isCommaBefore) {
+    if (currentChar == '\n') {
+        (*line)++;
+        *col = 0;
+        *isCommaBefore = false;
+    } else if (currentChar == ',') {
+        *isCommaBefore = true;
+    } else {
+        *isCommaBefore = false;
+    }
+    (*col)++;
+}
+
 void extractWords(const char* path) {
     int fd = open(path, O_RDONLY);
     if (fd == -1) {
@@ -184,38 +197,37 @@ void extractWords(const char* path) {
         return;
     }
 
-    char buf[1024], word[256];
+    char buf[1024], word[256], *wordPtr;
     int bytesRead, wIdx = 0, line = 1, col = 1;
-    bool inHyphenatedWord = false;
-    char prevChar = ' ';
-    bool isCommaBefore = false; // Initialize isCommaBefore
+    bool isCommaBefore = false;
     while ((bytesRead = read(fd, buf, sizeof(buf) - 1)) > 0) {
         for (int i = 0; i < bytesRead; ++i) {
-            if (isAlphaOrHyphen(buf[i]) || (buf[i] == '\'' && wIdx > 0)) { // Include hyphen and apostrophe in word
-                if (wIdx < sizeof(word) - 1) {
-                    word[wIdx++] = buf[i];
-                }
-                if (buf[i] == '-') inHyphenatedWord = true; // Set flag if a hyphen is encountered
+            if (isAlphaOrHyphen(buf[i]) || (buf[i] == '\'' && wIdx > 0)) {
+                word[wIdx++] = buf[i];
             } else {
                 if (wIdx > 0) {
                     word[wIdx] = '\0';
-                    cleanAndCheckWord(word, path, line, col - wIdx, isCommaBefore);
+                    bool foundError = false;
+                    char originalWord[256];
+                    strcpy(originalWord, word); // Copy the original word for error reporting
+
+                    // New logic for handling hyphenated words
+                    char* token = strtok_r(word, "-", &wordPtr);
+                    while (token != NULL) {
+                        if (!findWord(token)) {
+                            foundError = true;
+                        }
+                        token = strtok_r(NULL, "-", &wordPtr);
+                    }
+
+                    if (foundError) {
+                        // Report the entire hyphenated word as incorrect
+                        reportSpellingError(originalWord, path, line, col - strlen(originalWord), isCommaBefore);
+                    }
                     wIdx = 0;
                 }
-                if (buf[i] == '\n') {
-                    line++;
-                    col = 0;
-                    isCommaBefore = false; // Reset isCommaBefore at the beginning of each line
-                } else if (buf[i] == ',') {
-                    isCommaBefore = true; // Set isCommaBefore if a comma is encountered
-                } else {
-                    isCommaBefore = false; // Reset isCommaBefore if a non-comma character is encountered
-                }
-                inHyphenatedWord = false; // Reset flag at the end of a word
+                updateLineAndColumn(&line, &col, buf[i], &isCommaBefore);
             }
-            prevChar = buf[i]; // Update previous character
-            col++;
-            if (inHyphenatedWord && !isAlphaOrHyphen(buf[i])) inHyphenatedWord = false; // End of hyphenated word
         }
     }
     if (bytesRead == -1) perror("Error reading file");
