@@ -27,12 +27,6 @@ processFile- This file initiates the spell check process for a single file it th
 
 main- this function initializes the hashtable, loads the dictionary and processes each file or directory specified in the args.
 
-In test case 1 we are testing for capitalization errors with normal non proper words like a name, the output should point out the 4 capitalization errors in the 5th line of the code apart from those there are no other errors.
-
-In test case 2 we are testing how well the code handles two issues, proper nouns as well as hyphenated words. The program should not let summer, Macdonald or macdonald pass. Also the word ice-cream is spelled incorrectly once as well as correctly once. It should print only 4 errors.
-
-Test case 3 is meant to test for grammatical errors with commas. If a comma is before a word with no space it should print an error. Our program should and does print the word with the comma to indicate this specific error is grammatical not a spelling issue.
-
 Test Cases
 
 Test 1: Basic Spellchecking (test1.txt)
